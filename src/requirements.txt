@@ -1,1 +1,9 @@
-#requirements.txt
+pandas
+boto3
+sagemaker
+scikit-learn
+imbalanced-learn
+pyathena
+dataprep
+xgboost
+
