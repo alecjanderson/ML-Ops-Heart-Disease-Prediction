@@ -1,28 +1,26 @@
 import pandas as pd
-from sklearn.metrics import classification_report, confusion_matrix, f1_score
-import boto3
-import sagemaker
+from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score, roc_curve, auc
+from sklearn.metrics import ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
 
-# Load test data
-s3 = boto3.client('s3')
-bucket = 'your-s3-bucket-name'
-s3.download_file(bucket, 'data/preprocessed_2022.csv', 'preprocessed_2022.csv')
-df_test = pd.read_csv('preprocessed_2022.csv')
-X_test = df_test.drop('HeartDisease', axis=1)
-y_test = df_test['HeartDisease']
+# Your evaluation code here
 
-# Load model
-model_name = 'your_model_name'  # Replace with actual model name
-predictor = sagemaker.predictor.Predictor(endpoint_name=model_name)
+# Load predictions and true labels
+predictions = pd.read_csv('predictions.csv')
+true = pd.read_csv('true_labels.csv')
 
-# Get predictions
-predictions = predictor.predict(X_test.values)
-predicted_classes = [1 if p > 0.5 else 0 for p in predictions]
+# Evaluate model performance
+predicted = list(map(lambda x: 0 if x else 1, (predictions < 0.5).values))
+cm = confusion_matrix(true, predicted)
+cm_image = ConfusionMatrixDisplay(cm, display_labels=['no heart disease', 'heart disease'])
+cm_image.plot()
 
-# Evaluate the model
-print("Confusion Matrix:")
-print(confusion_matrix(y_test, predicted_classes))
-print("\nClassification Report:")
-print(classification_report(y_test, predicted_classes))
-print(f"F1 Score: {f1_score(y_test, predicted_classes)}")
+cr = classification_report(true, predicted)
+print(cr)
 
+roc_auc = roc_auc_score(true, predictions)
+print('ROC-AUC score:', round(roc_auc, 2))
+
+# Save confusion matrix plot
+plt.savefig('Confusion_Matrix.jpeg')
+plt.show()
