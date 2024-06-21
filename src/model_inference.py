@@ -1,23 +1,33 @@
-import boto3
-import sagemaker
 import pandas as pd
+from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score, roc_curve, auc
+from sklearn.metrics import ConfusionMatrixDisplay
+import boto3
+import re
+import time
+from time import gmtime, strftime, sleep
+from sagemaker.session import Session
+from sagemaker import get_execution_role
+import sagemaker
 
-# Load test data
-s3 = boto3.client('s3')
-bucket = 'your-s3-bucket-name'
-s3.download_file(bucket, 'data/preprocessed_2022.csv', 'preprocessed_2022.csv')
-df_test = pd.read_csv('preprocessed_2022.csv')
-X_test = df_test.drop('HeartDisease', axis=1)
+# Your model inference code here
 
-# Load model
-model_name = 'your_model_name'  # Replace with actual model name
-predictor = sagemaker.predictor.Predictor(endpoint_name=model_name)
+# Helper function to get CSV output from S3
+def get_csv_output_from_s3(s3uri, batch_file):
+    file_name = "{}.out".format(batch_file)
+    match = re.match("s3://([^/]+)/(.*)", "{}/{}".format(s3uri, file_name))
+    output_bucket, output_prefix = match.group(1), match.group(2)
+    s3 = boto3.client("s3")
+    s3.download_file(output_bucket, output_prefix, file_name)
+    return pd.read_csv(file_name, sep=",", header=None)
 
-# Get predictions
-predictions = predictor.predict(X_test.values)
-predicted_classes = [1 if p > 0.5 else 0 for p in predictions]
+# Load batch data
+data_batch = pd.read_csv('batch_data.csv')
 
-# Save predictions
-predictions_df = pd.DataFrame({'predictions': predicted_classes})
-predictions_df.to_csv('predictions.csv', index=False)
-
+# Invoke the deployed endpoint
+sagemaker_runtime = boto3.client("sagemaker-runtime", region_name=boto3.Session().region_name)
+response = sagemaker_runtime.invoke_endpoint(
+    EndpointName='xgb-tuned-endpoint',
+    ContentType='text/csv',
+    Body=data_batch.to_csv(header=None, index=False).strip('\n').split('\n')[0]
+)
+print(response['Body'].read().decode('utf-8'))
